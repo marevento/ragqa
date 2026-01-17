@@ -4,6 +4,7 @@
 import io
 import logging
 import os
+import readline  # noqa: F401 - enables arrow key history for input()
 import sys
 
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
@@ -307,7 +308,9 @@ def chat() -> None:
             console.print()
 
             try:
-                user_input = console.input("[bold]> [/bold]").strip()
+                # Use input() instead of console.input() for readline history support
+                console.print("[bold]> [/bold]", end="")
+                user_input = input().strip()
             except (KeyboardInterrupt, EOFError):
                 console.print("\nGoodbye!")
                 break
