@@ -70,24 +70,28 @@ class RAGChain:
                 query_type="specific",
             )
 
-        # Build context with source attribution
-        context_items = [
-            (c.filename, c.page, c.text) for c in self._truncate_context(chunks)
-        ]
+        # Truncate to context window and extract sources from used chunks only
+        used_chunks = self._truncate_context(chunks)
+        context_items = [(c.filename, c.title, c.page, c.text) for c in used_chunks]
         context = build_context(context_items)
 
         prompt = SPECIFIC_QUERY_PROMPT.format(context=context, question=question)
 
-        sources = self._extract_sources(chunks)
+        # Sources that were actually sent to the LLM
+        context_sources = self._extract_sources(used_chunks)
 
         if stream:
-            return self._stream_with_response(prompt, sources, confidence, "specific")
+            return self._stream_with_response(
+                prompt, context_sources, confidence, "specific"
+            )
         else:
             answer = str(generate(prompt, stream=False))
             answer = self._clean_response(answer)
+            # Only show sources that were in context AND cited in answer
+            cited_sources = self._filter_cited_sources(answer, context_sources)
             return RAGResponse(
                 answer=answer,
-                sources=sources,
+                sources=cited_sources,
                 confidence=confidence,
                 query_type="specific",
             )
@@ -250,6 +254,26 @@ class RAGChain:
                 )
 
         return sources
+
+    def _filter_cited_sources(
+        self, answer: str, sources: list[dict[str, str | int]]
+    ) -> list[dict[str, str | int]]:
+        """Filter sources to only those actually cited in the answer."""
+        answer_lower = answer.lower()
+        cited: list[dict[str, str | int]] = []
+
+        for source in sources:
+            filename = str(source.get("filename", ""))
+            # Check if filename or its base (without extension) appears in answer
+            filename_base = filename.replace(".pdf", "").lower()
+            if filename.lower() in answer_lower or filename_base in answer_lower:
+                cited.append(source)
+
+        # If no explicit citations found, include top source as fallback
+        if not cited and sources:
+            cited = sources[:1]
+
+        return cited
 
     def _clean_response(self, response: str) -> str:
         """Remove verbose preambles from LLM response."""

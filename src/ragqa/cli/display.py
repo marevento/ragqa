@@ -13,7 +13,7 @@ console = Console()
 
 def print_banner(banner: str) -> None:
     """Print the application banner."""
-    console.print(banner, style="bold cyan")
+    console.print(Panel(banner, title="RAG Q&A", border_style="cyan"))
 
 
 def print_response(response: RAGResponse) -> None:

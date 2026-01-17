@@ -1,14 +1,54 @@
 """Typer CLI application for RAG Q&A."""
 
-import json
+# Suppress warnings before any imports (must be at top)
+import io
+import logging
+import os
+import sys
 
-import typer
-from rich.live import Live
-from rich.markdown import Markdown
-from rich.progress import Progress, SpinnerColumn, TextColumn
+os.environ["ORT_LOG_LEVEL"] = "ERROR"
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["POSTHOG_DISABLED"] = "True"
 
-from ragqa.cli.banner import get_banner
-from ragqa.cli.display import (
+# Suppress stderr during chromadb import (onnxruntime C++ warnings)
+# Use file descriptor redirect to capture C++ level warnings
+_stderr = sys.stderr
+sys.stderr = io.StringIO()
+_stderr_fd = os.dup(2)
+_devnull = os.open(os.devnull, os.O_WRONLY)
+os.dup2(_devnull, 2)
+
+logging.getLogger("chromadb").setLevel(logging.ERROR)
+logging.getLogger("posthog").setLevel(logging.CRITICAL)
+logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
+
+# Monkey-patch posthog capture to suppress errors
+try:
+    import posthog
+
+    posthog.capture = lambda *args, **kwargs: None
+    posthog.disabled = True
+except ImportError:
+    pass
+
+# Import chromadb-related modules while stderr is suppressed
+from ragqa.retrieval.vectorstore import VectorStore  # noqa: E402
+
+# Restore stderr after chromadb import
+os.dup2(_stderr_fd, 2)
+os.close(_stderr_fd)
+os.close(_devnull)
+sys.stderr = _stderr
+
+import json  # noqa: E402
+
+import typer  # noqa: E402
+from rich.live import Live  # noqa: E402
+from rich.markdown import Markdown  # noqa: E402
+from rich.progress import Progress, SpinnerColumn, TextColumn  # noqa: E402
+
+from ragqa.cli.banner import get_banner  # noqa: E402
+from ragqa.cli.display import (  # noqa: E402
     console,
     print_banner,
     print_documents_table,
@@ -18,13 +58,12 @@ from ragqa.cli.display import (
     print_success,
     print_warning,
 )
-from ragqa.config import get_settings
-from ragqa.core.pdf_loader import load_all_pdfs
-from ragqa.core.rag_chain import RAGChain, RAGResponse
-from ragqa.exceptions import RAGError
-from ragqa.llm.client import check_ollama_available
-from ragqa.retrieval.bm25_index import BM25Index
-from ragqa.retrieval.vectorstore import VectorStore
+from ragqa.config import get_settings  # noqa: E402
+from ragqa.core.pdf_loader import load_all_pdfs  # noqa: E402
+from ragqa.core.rag_chain import RAGChain, RAGResponse  # noqa: E402
+from ragqa.exceptions import RAGError  # noqa: E402
+from ragqa.llm.client import check_ollama_available  # noqa: E402
+from ragqa.retrieval.bm25_index import BM25Index  # noqa: E402
 
 app = typer.Typer(
     name="ragqa",
@@ -206,14 +245,26 @@ def ask(
                     except StopIteration:
                         pass
 
-                # Print sources after streaming completes
+                # Print sources after streaming completes (only cited ones)
                 if full_text:
                     console.print()
                     console.print("-" * 40, style="dim")
                     chunks = vectorstore.search_chunks(question, 5)
+                    # Filter to only sources actually cited in the answer
+                    full_text_lower = full_text.lower()
+                    cited_chunks = [
+                        c
+                        for c in chunks
+                        if c.filename.lower() in full_text_lower
+                        or c.filename.replace(".pdf", "").lower() in full_text_lower
+                    ]
+                    # If no explicit citations, include top source as fallback
+                    if not cited_chunks and chunks:
+                        cited_chunks = chunks[:1]
+
                     seen: set[str] = set()
                     console.print("References:", style="bold")
-                    for i, chunk in enumerate(chunks, 1):
+                    for i, chunk in enumerate(cited_chunks, 1):
                         if chunk.filename not in seen:
                             seen.add(chunk.filename)
                             console.print(f'[{i}] "{chunk.title}"', style="cyan")
