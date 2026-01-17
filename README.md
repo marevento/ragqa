@@ -55,7 +55,7 @@ A CLI application for answering questions about research papers using RAG (Retri
 
 ```bash
 # Clone and enter directory
-cd RAGacademic
+cd ragqa
 
 # Create virtual environment
 python3 -m venv .venv
