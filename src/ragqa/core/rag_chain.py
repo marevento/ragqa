@@ -77,8 +77,8 @@ class RAGChain:
 
         prompt = SPECIFIC_QUERY_PROMPT.format(context=context, question=question)
 
-        # Sources that were actually sent to the LLM
-        context_sources = self._extract_sources(used_chunks)
+        # Sources that were actually sent to the LLM (limit to top 3 for specific queries)
+        context_sources = self._extract_sources(used_chunks)[:3]
 
         if stream:
             return self._stream_with_response(
