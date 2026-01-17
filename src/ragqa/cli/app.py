@@ -237,27 +237,32 @@ def ask(
             else:
                 console.print()
                 full_text = ""
+                response: RAGResponse | None = None
                 with Live(console=console, refresh_per_second=10) as live:
                     try:
-                        for token in gen:
+                        while True:
+                            token = next(gen)
                             full_text += token
                             live.update(Markdown(full_text))
-                    except StopIteration:
-                        pass
+                    except StopIteration as e:
+                        # Generator returns RAGResponse when done
+                        response = e.value
 
-                # Print sources after streaming completes
-                if full_text:
+                # Print sources from the RAGResponse
+                if response and full_text:
                     console.print()
                     console.print("-" * 40, style="dim")
-                    chunks = vectorstore.search_chunks(question, 5)
-                    seen: set[str] = set()
-                    console.print("References:", style="bold")
-                    for i, chunk in enumerate(chunks, 1):
-                        if chunk.filename not in seen:
-                            seen.add(chunk.filename)
-                            console.print(f'[{i}] "{chunk.title}"', style="cyan")
+                    console.print(f"Confidence: {response.confidence}%", style="dim")
+                    console.print()
+                    if response.sources:
+                        console.print("References:", style="bold")
+                        for i, source in enumerate(response.sources, 1):
+                            title = source.get("title", "Untitled")
+                            authors = source.get("authors", "Unknown")
+                            filename = source.get("filename", "")
+                            console.print(f'[{i}] "{title}"', style="cyan")
                             console.print(
-                                f"    {chunk.authors} | {chunk.filename}",
+                                f"    {authors} | {filename}",
                                 style="dim",
                             )
 
@@ -335,27 +340,32 @@ def chat() -> None:
                 print_response(gen)
             else:
                 full_text = ""
+                response: RAGResponse | None = None
                 with Live(console=console, refresh_per_second=10) as live:
                     try:
-                        for token in gen:
+                        while True:
+                            token = next(gen)
                             full_text += token
                             live.update(Markdown(full_text))
-                    except StopIteration:
-                        pass
+                    except StopIteration as e:
+                        # Generator returns RAGResponse when done
+                        response = e.value
 
-                # Print sources after streaming completes
-                if full_text:
+                # Print sources from the RAGResponse
+                if response and full_text:
                     console.print()
                     console.print("-" * 40, style="dim")
-                    chunks = vectorstore.search_chunks(question, 5)
-                    seen: set[str] = set()
-                    console.print("References:", style="bold")
-                    for i, chunk in enumerate(chunks, 1):
-                        if chunk.filename not in seen:
-                            seen.add(chunk.filename)
-                            console.print(f'[{i}] "{chunk.title}"', style="cyan")
+                    console.print(f"Confidence: {response.confidence}%", style="dim")
+                    console.print()
+                    if response.sources:
+                        console.print("References:", style="bold")
+                        for i, source in enumerate(response.sources, 1):
+                            title = source.get("title", "Untitled")
+                            authors = source.get("authors", "Unknown")
+                            filename = source.get("filename", "")
+                            console.print(f'[{i}] "{title}"', style="cyan")
                             console.print(
-                                f"    {chunk.authors} | {chunk.filename}",
+                                f"    {authors} | {filename}",
                                 style="dim",
                             )
 
