@@ -1,6 +1,7 @@
 """Ollama LLM client with streaming support."""
 
 import json
+import random
 from collections.abc import Generator
 
 import httpx
@@ -21,6 +22,7 @@ def generate(prompt: str, stream: bool = False) -> str | Generator[str, None, No
         "options": {
             "temperature": settings.llm_temperature,
             "num_ctx": settings.llm_context_window,
+            "seed": random.randint(1, 1000000),  # Prevent Ollama KV cache
         },
     }
 

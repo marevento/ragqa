@@ -9,9 +9,8 @@ from ragqa.retrieval.vectorstore import VectorStore
 # Title boost factor for RRF
 TITLE_BOOST_WEIGHT = 2.0
 
-# Score filtering thresholds
-MIN_SCORE_RATIO = 0.5  # Drop results with score < 50% of top score
-SCORE_GAP_THRESHOLD = 0.3  # Drop if score drops by >30% from previous
+# Document-level filtering thresholds
+DOC_SCORE_RATIO = 0.7  # Drop documents with score < 70% of top document
 
 
 def reciprocal_rank_fusion(results_list: list[list[Chunk]], k: int = 60) -> list[Chunk]:
@@ -144,31 +143,24 @@ class Retriever:
         return boosted
 
     def _filter_by_score(self, chunks: list[Chunk]) -> list[Chunk]:
-        """Filter out chunks with scores significantly lower than the top result."""
+        """Filter chunks to keep only those from top-scoring documents."""
         if not chunks:
             return []
 
-        top_score = chunks[0].score
-        min_score = top_score * MIN_SCORE_RATIO
-
-        result: list[Chunk] = []
-        prev_score = top_score
-
+        # Group chunks by document and sum scores
+        doc_scores: dict[str, float] = {}
         for chunk in chunks:
-            # Drop if below minimum threshold
-            if chunk.score < min_score:
-                break
+            doc_scores[chunk.filename] = doc_scores.get(chunk.filename, 0) + chunk.score
 
-            # Drop if score gap is too large
-            if prev_score > 0:
-                gap = (prev_score - chunk.score) / prev_score
-                if gap > SCORE_GAP_THRESHOLD and len(result) > 0:
-                    break
+        # Find top document score
+        top_doc_score = max(doc_scores.values())
+        min_doc_score = top_doc_score * DOC_SCORE_RATIO
 
-            result.append(chunk)
-            prev_score = chunk.score
+        # Keep only documents above threshold
+        valid_docs = {doc for doc, score in doc_scores.items() if score >= min_doc_score}
 
-        return result
+        # Filter chunks to only those from valid documents
+        return [c for c in chunks if c.filename in valid_docs]
 
     def retrieve_semantic_only(
         self, query: str, top_k: int | None = None
