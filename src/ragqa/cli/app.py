@@ -339,12 +339,47 @@ def chat() -> None:
 
             console.print()
             console.print(f"[dim]Question: {question}[/dim]")
+            console.print()
 
-            with console.status("[dim]Thinking...[/dim]", spinner="dots"):
-                result = chain.ask(question, stream=False)
+            # Streaming output
+            gen = chain.ask(question, stream=True)
+            if isinstance(gen, RAGResponse):
+                print_response(gen)
+            else:
+                full_text = ""
+                with Live(console=console, refresh_per_second=10) as live:
+                    try:
+                        for token in gen:
+                            full_text += token
+                            live.update(Markdown(full_text))
+                    except StopIteration:
+                        pass
 
-            if isinstance(result, RAGResponse):
-                print_response(result)
+                # Print sources after streaming completes
+                if full_text:
+                    console.print()
+                    console.print("-" * 40, style="dim")
+                    chunks = vectorstore.search_chunks(question, 5)
+                    full_text_lower = full_text.lower()
+                    cited_chunks = [
+                        c
+                        for c in chunks
+                        if c.filename.lower() in full_text_lower
+                        or c.filename.replace(".pdf", "").lower() in full_text_lower
+                    ]
+                    if not cited_chunks and chunks:
+                        cited_chunks = chunks[:1]
+
+                    seen: set[str] = set()
+                    console.print("References:", style="bold")
+                    for i, chunk in enumerate(cited_chunks, 1):
+                        if chunk.filename not in seen:
+                            seen.add(chunk.filename)
+                            console.print(f'[{i}] "{chunk.title}"', style="cyan")
+                            console.print(
+                                f"    {chunk.authors} | {chunk.filename}",
+                                style="dim",
+                            )
 
     except RAGError as e:
         print_error(e, _debug)
