@@ -9,6 +9,10 @@ from ragqa.retrieval.vectorstore import VectorStore
 # Title boost factor for RRF
 TITLE_BOOST_WEIGHT = 2.0
 
+# Score filtering thresholds
+MIN_SCORE_RATIO = 0.5  # Drop results with score < 50% of top score
+SCORE_GAP_THRESHOLD = 0.3  # Drop if score drops by >30% from previous
+
 
 def reciprocal_rank_fusion(results_list: list[list[Chunk]], k: int = 60) -> list[Chunk]:
     """Merge multiple result lists using Reciprocal Rank Fusion."""
@@ -84,7 +88,9 @@ class Retriever:
         else:
             merged = []
 
-        return merged[:k]
+        # Filter out low-scoring results
+        filtered = self._filter_by_score(merged[:k])
+        return filtered
 
     def _compute_title_scores(self, query: str) -> dict[str, float]:
         """Compute similarity between query and document titles."""
@@ -136,6 +142,33 @@ class Retriever:
         # Re-sort by boosted score
         boosted.sort(key=lambda c: c.score, reverse=True)
         return boosted
+
+    def _filter_by_score(self, chunks: list[Chunk]) -> list[Chunk]:
+        """Filter out chunks with scores significantly lower than the top result."""
+        if not chunks:
+            return []
+
+        top_score = chunks[0].score
+        min_score = top_score * MIN_SCORE_RATIO
+
+        result: list[Chunk] = []
+        prev_score = top_score
+
+        for chunk in chunks:
+            # Drop if below minimum threshold
+            if chunk.score < min_score:
+                break
+
+            # Drop if score gap is too large
+            if prev_score > 0:
+                gap = (prev_score - chunk.score) / prev_score
+                if gap > SCORE_GAP_THRESHOLD and len(result) > 0:
+                    break
+
+            result.append(chunk)
+            prev_score = chunk.score
+
+        return result
 
     def retrieve_semantic_only(
         self, query: str, top_k: int | None = None
