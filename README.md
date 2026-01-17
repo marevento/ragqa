@@ -31,10 +31,12 @@ A CLI application for answering questions about research papers using RAG (Retri
 ## Features
 
 - **PDF Processing**: Extracts text, titles, authors, and abstracts from research papers
-- **Semantic Search**: Uses ChromaDB with nomic-embed-text embeddings
+- **Hybrid Search**: Combines BM25 keyword search + semantic embeddings with RRF fusion
+- **Title Boosting**: Prioritizes documents whose titles match the query
+- **Document Filtering**: Score-based filtering to show only relevant sources
 - **Query Classification**: Routes queries to appropriate handlers (all-docs, single-doc, specific)
 - **Streaming Output**: Real-time token display for LLM responses
-- **Interactive Chat**: Preset questions with custom input support
+- **Interactive Chat**: Preset questions with arrow key history navigation
 - **Golden Tests**: Built-in verification tests
 
 ## Installation
@@ -145,10 +147,12 @@ Environment variables (in `.env`):
 - Good text extraction with layout preservation
 - Handles multi-column layouts
 
-### Why Semantic-Only Search (MVP)?
-- Simpler implementation for initial version
-- Sufficient for most queries with good embeddings
-- Hybrid BM25+semantic planned for Phase 2
+### Why Hybrid Search?
+- BM25 handles exact keyword matches (e.g., "ToolMem")
+- Semantic search captures conceptual similarity
+- Reciprocal Rank Fusion (RRF) merges results effectively
+- Title boosting improves precision for document-specific queries
+- Document-level score filtering reduces irrelevant sources
 
 ### Query Classification
 - Keyword heuristics for predictable routing
@@ -177,7 +181,8 @@ ragqa/
 │   ├── retrieval/
 │   │   ├── embeddings.py  # Ollama embeddings
 │   │   ├── vectorstore.py # ChromaDB wrapper
-│   │   ├── retriever.py   # Search orchestration
+│   │   ├── bm25_index.py  # BM25 keyword search
+│   │   ├── retriever.py   # Hybrid search + RRF
 │   │   └── query_classifier.py
 │   ├── llm/
 │   │   ├── client.py      # Ollama client
