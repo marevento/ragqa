@@ -245,26 +245,14 @@ def ask(
                     except StopIteration:
                         pass
 
-                # Print sources after streaming completes (only cited ones)
+                # Print sources after streaming completes
                 if full_text:
                     console.print()
                     console.print("-" * 40, style="dim")
                     chunks = vectorstore.search_chunks(question, 5)
-                    # Filter to only sources actually cited in the answer
-                    full_text_lower = full_text.lower()
-                    cited_chunks = [
-                        c
-                        for c in chunks
-                        if c.filename.lower() in full_text_lower
-                        or c.filename.replace(".pdf", "").lower() in full_text_lower
-                    ]
-                    # If no explicit citations, include top source as fallback
-                    if not cited_chunks and chunks:
-                        cited_chunks = chunks[:1]
-
                     seen: set[str] = set()
                     console.print("References:", style="bold")
-                    for i, chunk in enumerate(cited_chunks, 1):
+                    for i, chunk in enumerate(chunks, 1):
                         if chunk.filename not in seen:
                             seen.add(chunk.filename)
                             console.print(f'[{i}] "{chunk.title}"', style="cyan")
@@ -360,19 +348,9 @@ def chat() -> None:
                     console.print()
                     console.print("-" * 40, style="dim")
                     chunks = vectorstore.search_chunks(question, 5)
-                    full_text_lower = full_text.lower()
-                    cited_chunks = [
-                        c
-                        for c in chunks
-                        if c.filename.lower() in full_text_lower
-                        or c.filename.replace(".pdf", "").lower() in full_text_lower
-                    ]
-                    if not cited_chunks and chunks:
-                        cited_chunks = chunks[:1]
-
                     seen: set[str] = set()
                     console.print("References:", style="bold")
-                    for i, chunk in enumerate(cited_chunks, 1):
+                    for i, chunk in enumerate(chunks, 1):
                         if chunk.filename not in seen:
                             seen.add(chunk.filename)
                             console.print(f'[{i}] "{chunk.title}"', style="cyan")

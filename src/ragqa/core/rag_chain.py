@@ -87,11 +87,9 @@ class RAGChain:
         else:
             answer = str(generate(prompt, stream=False))
             answer = self._clean_response(answer)
-            # Only show sources that were in context AND cited in answer
-            cited_sources = self._filter_cited_sources(answer, context_sources)
             return RAGResponse(
                 answer=answer,
-                sources=cited_sources,
+                sources=context_sources,
                 confidence=confidence,
                 query_type="specific",
             )
@@ -254,26 +252,6 @@ class RAGChain:
                 )
 
         return sources
-
-    def _filter_cited_sources(
-        self, answer: str, sources: list[dict[str, str | int]]
-    ) -> list[dict[str, str | int]]:
-        """Filter sources to only those actually cited in the answer."""
-        answer_lower = answer.lower()
-        cited: list[dict[str, str | int]] = []
-
-        for source in sources:
-            filename = str(source.get("filename", ""))
-            # Check if filename or its base (without extension) appears in answer
-            filename_base = filename.replace(".pdf", "").lower()
-            if filename.lower() in answer_lower or filename_base in answer_lower:
-                cited.append(source)
-
-        # If no explicit citations found, include top source as fallback
-        if not cited and sources:
-            cited = sources[:1]
-
-        return cited
 
     def _clean_response(self, response: str) -> str:
         """Remove verbose preambles from LLM response."""
