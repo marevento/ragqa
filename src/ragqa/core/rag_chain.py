@@ -144,8 +144,8 @@ class RAGChain:
         self, question: str, stream: bool
     ) -> RAGResponse | Generator[str, None, RAGResponse]:
         """Handle single document summarization."""
-        # Extract document ID from question
-        match = re.search(r"(2510\.\d+)", question)
+        # Extract document ID from question (arxiv format: YYMM.NNNNN)
+        match = re.search(r"(\d{4}\.\d{4,5})", question)
         if not match:
             return self._handle_specific(question, stream)
 
