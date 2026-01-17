@@ -42,6 +42,7 @@ os.close(_devnull)
 sys.stderr = _stderr
 
 import json  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 import typer  # noqa: E402
 from rich.live import Live  # noqa: E402
@@ -75,24 +76,19 @@ app = typer.Typer(
 # Global debug flag
 _debug = False
 
-# Golden test queries
-GOLDEN_TESTS: list[dict[str, str | list[str]]] = [
-    {
-        "query": "Describe the documents",
-        "expected_sources": "all",
-        "keywords": [],
-    },
-    {
-        "query": "What is ToolMem?",
-        "expected_sources": ["2510.06664v1.pdf"],
-        "keywords": ["memory", "tool", "agent"],
-    },
-    {
-        "query": "How can I build a LLM system that handles complex tasks?",
-        "expected_sources": ["2510.07772v1.pdf"],
-        "keywords": ["task", "workflow", "complex"],
-    },
-]
+def load_golden_tests() -> list[dict[str, str | list[str]]]:
+    """Load golden test cases from external JSON file."""
+    # Try multiple locations for the test file
+    possible_paths = [
+        Path(__file__).parent.parent.parent.parent / "tests" / "golden" / "test_cases.json",
+        Path.cwd() / "tests" / "golden" / "test_cases.json",
+    ]
+    for path in possible_paths:
+        if path.exists():
+            with open(path) as f:
+                return json.load(f)
+    # Fallback to empty list if file not found
+    return []
 
 # Preset questions for chat mode
 PRESET_QUESTIONS = [
@@ -114,6 +110,62 @@ def check_prerequisites() -> bool:
         )
         return False
     return True
+
+
+def stream_response(chain: RAGChain, question: str) -> RAGResponse | None:
+    """Stream a RAG response with spinner and live markdown display.
+
+    Returns the RAGResponse if successful, None if the generator returned early.
+    """
+    with console.status("[dim]Thinking...[/dim]", spinner="dots") as status:
+        gen = chain.ask(question, stream=True)
+        if isinstance(gen, RAGResponse):
+            status.stop()
+            print_response(gen)
+            return gen
+
+        # Get first token while showing spinner
+        full_text = ""
+        response: RAGResponse | None = None
+        try:
+            first_token = next(gen)
+            full_text = first_token
+        except StopIteration as e:
+            response = e.value
+            status.stop()
+            if response:
+                print_response(response)
+            return response
+
+        status.stop()
+
+    # Continue streaming remaining tokens
+    with Live(console=console, refresh_per_second=10) as live:
+        live.update(Markdown(full_text))
+        try:
+            while True:
+                token = next(gen)
+                full_text += token
+                live.update(Markdown(full_text))
+        except StopIteration as e:
+            response = e.value
+
+    # Print sources from the RAGResponse
+    if response and full_text:
+        console.print()
+        console.print("-" * 40, style="dim")
+        console.print(f"Confidence: {response.confidence}%", style="dim")
+        console.print()
+        if response.sources:
+            console.print("References:", style="bold")
+            for i, source in enumerate(response.sources, 1):
+                title = source.get("title", "Untitled")
+                authors = source.get("authors", "Unknown")
+                filename = source.get("filename", "")
+                console.print(f'[{i}] "{title}"', style="cyan")
+                console.print(f"    {authors} | {filename}", style="dim")
+
+    return response
 
 
 @app.callback()
@@ -231,59 +283,8 @@ def ask(
                 else:
                     print_response(result)
         else:
-            # Streaming output with spinner while waiting
             console.print()
-            with console.status("[dim]Thinking...[/dim]", spinner="dots") as status:
-                gen = chain.ask(question, stream=True)
-                if isinstance(gen, RAGResponse):
-                    status.stop()
-                    print_response(gen)
-                    return
-
-                # Get first token while showing spinner
-                full_text = ""
-                response: RAGResponse | None = None
-                try:
-                    first_token = next(gen)
-                    full_text = first_token
-                except StopIteration as e:
-                    response = e.value
-                    status.stop()
-                    if response:
-                        print_response(response)
-                    return
-
-                status.stop()
-
-            # Continue streaming remaining tokens
-            with Live(console=console, refresh_per_second=10) as live:
-                live.update(Markdown(full_text))
-                try:
-                    while True:
-                        token = next(gen)
-                        full_text += token
-                        live.update(Markdown(full_text))
-                except StopIteration as e:
-                    # Generator returns RAGResponse when done
-                    response = e.value
-
-                # Print sources from the RAGResponse
-                if response and full_text:
-                    console.print()
-                    console.print("-" * 40, style="dim")
-                    console.print(f"Confidence: {response.confidence}%", style="dim")
-                    console.print()
-                    if response.sources:
-                        console.print("References:", style="bold")
-                        for i, source in enumerate(response.sources, 1):
-                            title = source.get("title", "Untitled")
-                            authors = source.get("authors", "Unknown")
-                            filename = source.get("filename", "")
-                            console.print(f'[{i}] "{title}"', style="cyan")
-                            console.print(
-                                f"    {authors} | {filename}",
-                                style="dim",
-                            )
+            stream_response(chain, question)
 
     except RAGError as e:
         print_error(e, _debug)
@@ -353,59 +354,7 @@ def chat() -> None:
 
             console.print()
             console.print(f"[dim]Question: {question}[/dim]")
-
-            # Streaming output with spinner while waiting
-            with console.status("[dim]Thinking...[/dim]", spinner="dots") as status:
-                gen = chain.ask(question, stream=True)
-                if isinstance(gen, RAGResponse):
-                    status.stop()
-                    print_response(gen)
-                    continue
-
-                # Get first token while showing spinner
-                full_text = ""
-                response: RAGResponse | None = None
-                try:
-                    first_token = next(gen)
-                    full_text = first_token
-                except StopIteration as e:
-                    response = e.value
-                    status.stop()
-                    if response:
-                        print_response(response)
-                    continue
-
-                status.stop()
-
-            # Continue streaming remaining tokens
-            with Live(console=console, refresh_per_second=10) as live:
-                live.update(Markdown(full_text))
-                try:
-                    while True:
-                        token = next(gen)
-                        full_text += token
-                        live.update(Markdown(full_text))
-                except StopIteration as e:
-                    # Generator returns RAGResponse when done
-                    response = e.value
-
-            # Print sources from the RAGResponse
-            if response and full_text:
-                console.print()
-                console.print("-" * 40, style="dim")
-                console.print(f"Confidence: {response.confidence}%", style="dim")
-                console.print()
-                if response.sources:
-                    console.print("References:", style="bold")
-                    for i, source in enumerate(response.sources, 1):
-                        title = source.get("title", "Untitled")
-                        authors = source.get("authors", "Unknown")
-                        filename = source.get("filename", "")
-                        console.print(f'[{i}] "{title}"', style="cyan")
-                        console.print(
-                            f"    {authors} | {filename}",
-                            style="dim",
-                        )
+            stream_response(chain, question)
 
     except RAGError as e:
         print_error(e, _debug)
@@ -474,20 +423,25 @@ def test(
         chain = RAGChain(vectorstore)
         doc_count = vectorstore.document_count()
         results = []
+        golden_tests = load_golden_tests()
+
+        if not golden_tests:
+            print_warning("No golden test cases found in tests/golden/test_cases.json")
+            raise typer.Exit(1)
 
         if not json_output:
             console.print()
             console.print("Running golden file tests...", style="bold")
             console.print()
 
-        for i, test_case in enumerate(GOLDEN_TESTS, 1):
+        for i, test_case in enumerate(golden_tests, 1):
             query = str(test_case["query"])
             expected = test_case["expected_sources"]
             keywords_raw = test_case["keywords"]
             keywords = list(keywords_raw) if isinstance(keywords_raw, list) else []
 
             if not json_output:
-                console.print(f'[{i}/{len(GOLDEN_TESTS)}] "{query}"')
+                console.print(f'[{i}/{len(golden_tests)}] "{query}"')
 
             result = chain.ask(query, stream=False)
             if not isinstance(result, RAGResponse):

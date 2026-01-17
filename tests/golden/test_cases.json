@@ -1,0 +1,52 @@
+[
+  {
+    "query": "Describe the documents",
+    "expected_sources": "all",
+    "keywords": []
+  },
+  {
+    "query": "What is ToolMem?",
+    "expected_sources": ["2510.06664v1.pdf"],
+    "keywords": ["memory", "tool", "agent"]
+  },
+  {
+    "query": "How can I build a LLM system that handles complex tasks?",
+    "expected_sources": ["2510.07772v1.pdf"],
+    "keywords": ["task", "workflow", "complex"]
+  },
+  {
+    "query": "What is Agent+P and how does it guide UI agents?",
+    "expected_sources": ["2510.06042v1.pdf"],
+    "keywords": ["symbolic planning", "UI automation", "hallucination"]
+  },
+  {
+    "query": "How does agentic search use planning and reasoning?",
+    "expected_sources": ["2510.06534v1.pdf"],
+    "keywords": ["search", "planning", "reasoning", "information"]
+  },
+  {
+    "query": "What is COMPASS and what does it benchmark?",
+    "expected_sources": ["2510.07043v1.pdf"],
+    "keywords": ["tool", "planning", "preference", "multi-turn"]
+  },
+  {
+    "query": "Explain ProSEA's approach to problem solving",
+    "expected_sources": ["2510.07423v1.pdf"],
+    "keywords": ["exploration", "agent", "problem"]
+  },
+  {
+    "query": "How can RAG be used for knowledge bases in conversational AI?",
+    "expected_sources": ["2510.08149v1.pdf"],
+    "keywords": ["retrieval", "knowledge", "conversational"]
+  },
+  {
+    "query": "How does AJAN framework help with semantic web multi-agent systems?",
+    "expected_sources": ["2510.06911v1.pdf"],
+    "keywords": ["semantic", "agent", "AJAN"]
+  },
+  {
+    "query": "Which papers discuss tool usage in LLM agents?",
+    "expected_sources": ["2510.06664v1.pdf", "2510.07043v1.pdf"],
+    "keywords": ["tool", "agent"]
+  }
+]

@@ -5,27 +5,27 @@ A CLI application for answering questions about research papers using RAG (Retri
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           RAG Q&A CLI                                │
-│  ┌─────────┐  ┌───────────────┐  ┌────────────────┐  ┌───────────┐  │
-│  │  index  │  │     ask       │  │     chat       │  │   test    │  │
-│  └────┬────┘  └───────┬───────┘  └───────┬────────┘  └─────┬─────┘  │
-└───────┼───────────────┼──────────────────┼─────────────────┼────────┘
-        │               │                  │                 │
-        ▼               ▼                  ▼                 ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                        RAG Chain                                   │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌───────────────────┐  │
-│  │ Query Classifier │──│    Retriever    │──│   LLM Generator   │  │
-│  └─────────────────┘  └────────┬────────┘  └───────────────────┘  │
-└────────────────────────────────┼──────────────────────────────────┘
-                                 │
-        ┌────────────────────────┼────────────────────────┐
-        ▼                        ▼                        ▼
-┌───────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│  PDF Loader   │      │  Vector Store   │      │   Ollama API    │
-│  (PyMuPDF)    │      │  (ChromaDB)     │      │  (LLM + Embed)  │
-└───────────────┘      └─────────────────┘      └─────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                         RAG Q&A CLI                           │
+│  ┌───────┐  ┌─────────┐  ┌────────┐  ┌──────────────────────┐ │
+│  │ index │  │   ask   │  │  chat  │  │         test         │ │
+│  └───┬───┘  └────┬────┘  └───┬────┘  └──────────┬───────────┘ │
+└──────┼──────────┼───────────┼───────────────────┼─────────────┘
+       │          │           │                   │
+       ▼          ▼           ▼                   ▼
+┌───────────────────────────────────────────────────────────────┐
+│                          RAG Chain                            │
+│  ┌─────────────────┐  ┌────────────┐  ┌───────────────────┐   │
+│  │ Query Classifier│─▶│  Retriever │─▶│   LLM Generator   │   │
+│  └─────────────────┘  └─────┬──────┘  └───────────────────┘   │
+└─────────────────────────────┼─────────────────────────────────┘
+                              │
+       ┌──────────────────────┼──────────────────────┐
+       ▼                      ▼                      ▼
+┌─────────────┐      ┌───────────────┐      ┌───────────────┐
+│ PDF Loader  │      │ Vector Store  │      │  Ollama API   │
+│  (PyMuPDF)  │      │  (ChromaDB)   │      │ (LLM + Embed) │
+└─────────────┘      └───────────────┘      └───────────────┘
 ```
 
 ## Features
@@ -209,6 +209,14 @@ poetry run ruff check src/ tests/
 # Format
 poetry run ruff format src/ tests/
 ```
+
+## Out of scope/possible improvements
+
+**Conversation Memory**: Add context persistence in chat mode using sliding window or summarization
+**Query Classification**: Replace keyword heuristics with embedding-based classification using labeled examples
+**Retrieval Enhancement**: Add cross-encoder re-ranking after RRF fusion for improved relevance (needs an extra dependencies but enhances results significantly)
+**Incremental Indexing**: Implement hash-based change detection to avoid full re-index on document updates
+**Expanded Golden Tests**: Add more test cases covering edge cases, multi-document queries, and failure modes
 
 ## License
 
