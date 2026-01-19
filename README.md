@@ -38,6 +38,10 @@ A CLI application for answering questions about research papers using RAG (Retri
 - **Streaming Output**: Real-time token display for LLM responses
 - **Interactive Chat**: Preset questions with arrow key history navigation
 - **Golden Tests**: Built-in verification tests
+- **Async Support**: Full async/await API for integration with async frameworks
+- **Structured Logging**: Production-ready logging with structlog
+- **Protocol-based DI**: Swappable components via Python protocols
+- **Performance Caching**: LRU cache for embeddings and title similarity scores
 
 ## Installation
 
@@ -172,26 +176,33 @@ Environment variables (in `.env`):
 ```
 ragqa/
 ├── src/ragqa/
+│   ├── __init__.py        # Logging configuration
 │   ├── config.py          # Settings (pydantic-settings)
 │   ├── exceptions.py      # Custom exceptions
+│   ├── protocols.py       # Protocol interfaces for DI
 │   ├── core/
-│   │   ├── models.py      # Data models
+│   │   ├── models.py      # Data models (Chunk, Document)
 │   │   ├── pdf_loader.py  # PDF parsing
-│   │   └── rag_chain.py   # RAG orchestration
+│   │   └── rag_chain.py   # RAG orchestration (sync + async)
 │   ├── retrieval/
-│   │   ├── embeddings.py  # Ollama embeddings
+│   │   ├── embeddings.py  # Ollama embeddings (sync + async)
 │   │   ├── vectorstore.py # ChromaDB wrapper
 │   │   ├── bm25_index.py  # BM25 keyword search
 │   │   ├── retriever.py   # Hybrid search + RRF
 │   │   └── query_classifier.py
 │   ├── llm/
-│   │   ├── client.py      # Ollama client
+│   │   ├── client.py      # Ollama client (sync + async)
 │   │   └── prompts.py     # Prompt templates
 │   └── cli/
 │       ├── app.py         # Typer commands
 │       ├── display.py     # Rich output
 │       └── banner.py      # ASCII banner
 └── tests/
+    ├── conftest.py        # Shared fixtures
+    ├── golden/            # Golden test cases
+    ├── core/              # Core module tests
+    ├── retrieval/         # Retrieval tests
+    └── llm/               # LLM client tests
 ```
 
 ## Development
@@ -210,13 +221,13 @@ poetry run ruff check src/ tests/
 poetry run ruff format src/ tests/
 ```
 
-## Out of scope/possible improvements
+## Possible Improvements
 
-**Conversation Memory**: Add context persistence in chat mode using sliding window or summarization
-**Query Classification**: Replace keyword heuristics with embedding-based classification using labeled examples
-**Retrieval Enhancement**: Add cross-encoder re-ranking after RRF fusion for improved relevance (needs an extra dependencies but enhances results significantly)
-**Incremental Indexing**: Implement hash-based change detection to avoid full re-index on document updates
-**Expanded Golden Tests**: Add more test cases covering edge cases, multi-document queries, and failure modes
+- **Conversation Memory**: Add context persistence in chat mode using sliding window or summarization
+- **Query Classification**: Replace keyword heuristics with embedding-based classification using labeled examples
+- **Retrieval Enhancement**: Add cross-encoder re-ranking after RRF fusion for improved relevance
+- **Incremental Indexing**: Implement hash-based change detection to avoid full re-index on document updates
+- **Expanded Golden Tests**: Add more test cases covering edge cases, multi-document queries, and failure modes
 
 ## License
 

@@ -79,7 +79,11 @@ class BM25Index:
             self._save()
 
     def add_document(self, document: Document) -> None:
-        """Add a single document to the index."""
+        """Add a single document to the index.
+
+        Note: For better performance when adding multiple documents,
+        use add_documents_batch() instead.
+        """
         for chunk in document.chunks:
             tokens = tokenize(chunk.text)
             title_tokens = tokenize(chunk.title)
@@ -89,6 +93,30 @@ class BM25Index:
             self.corpus.append(all_tokens)
 
         # Rebuild index with new documents
+        if self.corpus:
+            self.bm25 = BM25Okapi(self.corpus)
+            self._save()
+
+    def add_documents_batch(self, documents: list[Document]) -> None:
+        """Add multiple documents and rebuild index once.
+
+        This is more efficient than calling add_document() multiple times
+        because it only rebuilds the BM25 index once after all documents
+        are added.
+
+        Args:
+            documents: List of documents to add.
+        """
+        for doc in documents:
+            for chunk in doc.chunks:
+                tokens = tokenize(chunk.text)
+                title_tokens = tokenize(chunk.title)
+                all_tokens = tokens + title_tokens
+
+                self.chunks.append(chunk)
+                self.corpus.append(all_tokens)
+
+        # Single rebuild at end
         if self.corpus:
             self.bm25 = BM25Okapi(self.corpus)
             self._save()

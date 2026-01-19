@@ -1,5 +1,6 @@
 """Configuration management using pydantic-settings."""
 
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,10 +38,11 @@ class Settings(BaseSettings):
     chroma_persist_dir: Path = Path("./.chroma_db")
 
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "WARNING"
     debug: bool = False
 
 
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Get application settings singleton."""
     return Settings()

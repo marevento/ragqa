@@ -49,6 +49,7 @@ from rich.live import Live  # noqa: E402
 from rich.markdown import Markdown  # noqa: E402
 from rich.progress import Progress, SpinnerColumn, TextColumn  # noqa: E402
 
+from ragqa import configure_logging  # noqa: E402
 from ragqa.cli.banner import get_banner  # noqa: E402
 from ragqa.cli.display import (  # noqa: E402
     console,
@@ -86,7 +87,7 @@ def load_golden_tests() -> list[dict[str, str | list[str]]]:
     for path in possible_paths:
         if path.exists():
             with open(path) as f:
-                return json.load(f)
+                return json.load(f)  # type: ignore[no-any-return]
     # Fallback to empty list if file not found
     return []
 
@@ -170,11 +171,13 @@ def stream_response(chain: RAGChain, question: str) -> RAGResponse | None:
 
 @app.callback()
 def main(
-    debug: bool = typer.Option(False, "--debug", "-d", help="Show detailed errors"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Show detailed errors and logs"),
 ) -> None:
     """RAG Q&A - Research Paper Q&A System."""
     global _debug
     _debug = debug
+    if debug:
+        configure_logging(level="DEBUG")
 
 
 @app.command()

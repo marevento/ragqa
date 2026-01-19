@@ -1,10 +1,16 @@
 """Hybrid retrieval orchestration with RRF fusion."""
 
+import time
+
+from ragqa import get_logger
 from ragqa.config import get_settings
 from ragqa.core.models import Chunk
+from ragqa.protocols import KeywordIndex, VectorStoreProtocol
 from ragqa.retrieval.bm25_index import BM25Index
-from ragqa.retrieval.embeddings import get_embedding
+from ragqa.retrieval.embeddings import get_embedding, get_embedding_async
 from ragqa.retrieval.vectorstore import VectorStore
+
+logger = get_logger(__name__)
 
 # Title boost factor for RRF
 TITLE_BOOST_WEIGHT = 2.0
@@ -53,22 +59,31 @@ class Retriever:
 
     def __init__(
         self,
-        vectorstore: VectorStore | None = None,
-        bm25_index: BM25Index | None = None,
+        vectorstore: VectorStoreProtocol | None = None,
+        bm25_index: KeywordIndex | None = None,
     ) -> None:
-        self.vectorstore = vectorstore or VectorStore()
-        self.bm25_index = bm25_index or BM25Index()
+        self.vectorstore: VectorStoreProtocol = vectorstore or VectorStore()
+        self.bm25_index: KeywordIndex = bm25_index or BM25Index()
 
     def retrieve(self, query: str, top_k: int | None = None) -> list[Chunk]:
         """Retrieve relevant chunks using hybrid search with title boosting."""
+        start_time = time.time()
         settings = get_settings()
         k = top_k or settings.retrieval_top_k
+
+        logger.debug("retrieval_started", query=query[:50], top_k=k)
 
         # Get results from both sources
         fetch_k = k * 3
 
         semantic_results = self.vectorstore.search_chunks(query, fetch_k)
         bm25_results = self.bm25_index.search(query, fetch_k)
+
+        logger.debug(
+            "retrieval_sources_fetched",
+            semantic_count=len(semantic_results),
+            bm25_count=len(bm25_results),
+        )
 
         # Compute title relevance scores for each document
         title_scores = self._compute_title_scores(query)
@@ -89,29 +104,56 @@ class Retriever:
 
         # Filter out low-scoring results
         filtered = self._filter_by_score(merged[:k])
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(
+            "retrieval_completed",
+            duration_ms=round(duration_ms, 2),
+            chunks_returned=len(filtered),
+            query_preview=query[:30],
+        )
+
         return filtered
 
     def _compute_title_scores(self, query: str) -> dict[str, float]:
-        """Compute similarity between query and document titles."""
+        """Compute similarity between query and document titles.
+
+        Uses cached title embeddings from VectorStore for efficiency.
+        Falls back to computing embeddings if cache is unavailable.
+        """
         import numpy as np
 
         query_emb = get_embedding(query)
-        docs = self.vectorstore.get_all_documents()
         title_scores: dict[str, float] = {}
 
-        for doc in docs:
-            meta = doc.get("metadata", {})
-            title = meta.get("title", "")
-            filename = meta.get("filename", "")
+        # Try to use cached title embeddings first
+        cached_embeddings = self.vectorstore.get_title_embeddings()
 
-            if title and filename:
-                title_emb = get_embedding(title)
+        if cached_embeddings:
+            # Use cached embeddings for efficiency
+            for filename, title_emb in cached_embeddings.items():
                 # Cosine similarity
                 similarity = float(
                     np.dot(query_emb, title_emb)
                     / (np.linalg.norm(query_emb) * np.linalg.norm(title_emb))
                 )
                 title_scores[filename] = similarity
+        else:
+            # Fallback: compute embeddings on the fly (for backward compatibility)
+            docs = self.vectorstore.get_all_documents()
+            for doc in docs:
+                meta = doc.get("metadata", {})
+                title = meta.get("title", "")
+                filename = meta.get("filename", "")
+
+                if title and filename:
+                    title_emb = get_embedding(title)
+                    # Cosine similarity
+                    similarity = float(
+                        np.dot(query_emb, title_emb)
+                        / (np.linalg.norm(query_emb) * np.linalg.norm(title_emb))
+                    )
+                    title_scores[filename] = similarity
 
         return title_scores
 
@@ -187,3 +229,95 @@ class Retriever:
         # With 2 sources, max is about 0.032
         confidence = min(100, int(avg_score * 3000))
         return confidence
+
+    async def retrieve_async(self, query: str, top_k: int | None = None) -> list[Chunk]:
+        """Retrieve relevant chunks using hybrid search with title boosting (async).
+
+        Args:
+            query: The search query.
+            top_k: Maximum number of results to return.
+
+        Returns:
+            List of relevant chunks with scores.
+        """
+        settings = get_settings()
+        k = top_k or settings.retrieval_top_k
+
+        # Get results from both sources
+        fetch_k = k * 3
+
+        # Async semantic search, sync BM25 search
+        # Note: Type ignore needed because protocol doesn't include async methods
+        semantic_results = await self.vectorstore.search_chunks_async(query, fetch_k)  # type: ignore[attr-defined]
+        bm25_results = self.bm25_index.search(query, fetch_k)
+
+        # Compute title relevance scores for each document (async)
+        title_scores = await self._compute_title_scores_async(query)
+
+        # Boost chunks based on title relevance
+        boosted_semantic = self._apply_title_boost(semantic_results, title_scores)
+        boosted_bm25 = self._apply_title_boost(bm25_results, title_scores)
+
+        # Merge using RRF
+        if boosted_bm25 and boosted_semantic:
+            merged = reciprocal_rank_fusion([boosted_semantic, boosted_bm25])
+        elif boosted_semantic:
+            merged = boosted_semantic
+        elif boosted_bm25:
+            merged = boosted_bm25
+        else:
+            merged = []
+
+        # Filter out low-scoring results
+        filtered = self._filter_by_score(merged[:k])
+        return filtered
+
+    async def _compute_title_scores_async(self, query: str) -> dict[str, float]:
+        """Compute similarity between query and document titles (async).
+
+        Uses cached title embeddings from VectorStore for efficiency.
+        Falls back to computing embeddings if cache is unavailable.
+        """
+        import numpy as np
+
+        query_emb = await get_embedding_async(query)
+        title_scores: dict[str, float] = {}
+
+        # Try to use cached title embeddings first
+        cached_embeddings = self.vectorstore.get_title_embeddings()
+
+        if cached_embeddings:
+            # Use cached embeddings for efficiency
+            for filename, title_emb in cached_embeddings.items():
+                # Cosine similarity
+                similarity = float(
+                    np.dot(query_emb, title_emb)
+                    / (np.linalg.norm(query_emb) * np.linalg.norm(title_emb))
+                )
+                title_scores[filename] = similarity
+        else:
+            # Fallback: compute embeddings on the fly (for backward compatibility)
+            docs = self.vectorstore.get_all_documents()
+            for doc in docs:
+                meta = doc.get("metadata", {})
+                title = meta.get("title", "")
+                filename = meta.get("filename", "")
+
+                if title and filename:
+                    title_emb = await get_embedding_async(title)
+                    # Cosine similarity
+                    similarity = float(
+                        np.dot(query_emb, title_emb)
+                        / (np.linalg.norm(query_emb) * np.linalg.norm(title_emb))
+                    )
+                    title_scores[filename] = similarity
+
+        return title_scores
+
+    async def retrieve_semantic_only_async(
+        self, query: str, top_k: int | None = None
+    ) -> list[Chunk]:
+        """Retrieve using only semantic search (async)."""
+        settings = get_settings()
+        k = top_k or settings.retrieval_top_k
+        return await self.vectorstore.search_chunks_async(query, k)  # type: ignore[attr-defined, no-any-return]

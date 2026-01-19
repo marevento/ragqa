@@ -1,7 +1,6 @@
 """Tests for hybrid retriever."""
 
 import pytest
-
 from ragqa.core.models import Chunk
 from ragqa.retrieval.retriever import (
     DOC_SCORE_RATIO,

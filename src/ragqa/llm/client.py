@@ -2,7 +2,7 @@
 
 import json
 import random
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 
 import httpx
 
@@ -112,3 +112,100 @@ def get_available_models() -> list[str]:
         return [m.get("name", "") for m in data.get("models", [])]
     except Exception:
         return []
+
+
+async def generate_async(
+    prompt: str, stream: bool = False
+) -> str | AsyncGenerator[str, None]:
+    """Generate text using Ollama LLM (async).
+
+    Args:
+        prompt: The prompt to send to the LLM.
+        stream: Whether to stream the response.
+
+    Returns:
+        If stream=False, returns the complete response string.
+        If stream=True, returns an async generator yielding tokens.
+
+    Raises:
+        LLMError: If connection fails or API returns an error.
+    """
+    settings = get_settings()
+    url = f"{settings.ollama_base_url}/api/generate"
+
+    payload = {
+        "model": settings.ollama_model,
+        "prompt": prompt,
+        "stream": stream,
+        "options": {
+            "temperature": settings.llm_temperature,
+            "num_ctx": settings.llm_context_window,
+            "seed": random.randint(1, 1000000),  # Prevent Ollama KV cache
+        },
+    }
+
+    if stream:
+        return _stream_generate_async(url, payload)
+    else:
+        return await _sync_generate_async(url, payload)
+
+
+async def _sync_generate_async(url: str, payload: dict[str, object]) -> str:
+    """Non-streaming generation (async)."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload, timeout=120.0)
+            response.raise_for_status()
+            data = response.json()
+            return str(data.get("response", ""))
+    except httpx.ConnectError as e:
+        raise LLMError(
+            message="Cannot connect to Ollama. Is it running?",
+            details=f"Connection refused: {url}. Run 'ollama serve' to start.",
+        ) from e
+    except httpx.HTTPStatusError as e:
+        raise LLMError(
+            message=f"Ollama generation error: {e.response.status_code}",
+            details=str(e),
+        ) from e
+    except Exception as e:
+        raise LLMError(
+            message="Failed to generate response",
+            details=str(e),
+        ) from e
+
+
+async def _stream_generate_async(
+    url: str, payload: dict[str, object]
+) -> AsyncGenerator[str, None]:
+    """Streaming generation (async)."""
+    try:
+        async with httpx.AsyncClient() as client:  # noqa: SIM117
+            async with client.stream("POST", url, json=payload, timeout=120.0) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            token = data.get("response", "")
+                            if token:
+                                yield token
+                            if data.get("done", False):
+                                break
+                        except json.JSONDecodeError:
+                            continue
+    except httpx.ConnectError as e:
+        raise LLMError(
+            message="Cannot connect to Ollama. Is it running?",
+            details=f"Connection refused: {url}. Run 'ollama serve' to start.",
+        ) from e
+    except httpx.HTTPStatusError as e:
+        raise LLMError(
+            message=f"Ollama generation error: {e.response.status_code}",
+            details=str(e),
+        ) from e
+    except Exception as e:
+        raise LLMError(
+            message="Failed to generate response",
+            details=str(e),
+        ) from e

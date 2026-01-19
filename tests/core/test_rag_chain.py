@@ -1,6 +1,5 @@
 """Tests for RAG chain orchestration."""
 
-import pytest
 
 from ragqa.core.rag_chain import RAGResponse
 
