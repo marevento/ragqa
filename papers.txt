@@ -1,0 +1,20 @@
+# arXiv paper IDs to download
+# One ID per line, comments start with #
+# Format: YYMM.NNNNN or YYMM.NNNNNvN (e.g., 2510.06042 or 2510.06042v1)
+# You can also use full URLs like https://arxiv.org/abs/2510.06042
+
+2510.06042v1
+2510.06534v1
+2510.06664v1
+2510.06911v1
+2510.07043v1
+2510.07423v1
+2510.07593v1
+2510.07614v1
+2510.07733v1
+2510.07772v1
+2510.08149v1
+2510.08255v1
+2510.08383v1
+2510.08529v1
+2510.08567v1

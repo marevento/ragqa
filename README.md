@@ -71,6 +71,9 @@ poetry install
 
 # Copy environment template
 cp .env.example .env
+
+# Download research papers from arXiv
+python scripts/download_papers.py --file papers.txt
 ```
 
 ## Usage
