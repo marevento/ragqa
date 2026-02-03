@@ -61,19 +61,17 @@ A CLI application for answering questions about research papers using RAG (Retri
 # Clone and enter directory
 cd ragqa
 
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+# Install Poetry (if not already installed)
+pipx install poetry
 
-# Install dependencies
-pip install poetry
+# Install dependencies (creates .venv automatically)
 poetry install
 
 # Copy environment template
 cp .env.example .env
 
 # Download research papers from arXiv
-python scripts/download_papers.py --file papers.txt
+poetry run python scripts/download_papers.py --file papers.txt
 ```
 
 ## Usage
