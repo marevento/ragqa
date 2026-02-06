@@ -12,6 +12,7 @@ import re
 import sys
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 ARXIV_PDF_URL = "https://arxiv.org/pdf/{paper_id}.pdf"
@@ -22,12 +23,14 @@ def normalize_arxiv_id(paper_id: str) -> str:
     """Normalize arXiv ID by stripping URL prefixes and extracting the ID."""
     paper_id = paper_id.strip()
 
-    # Handle full URLs
-    if "arxiv.org" in paper_id:
-        # Extract ID from URLs like https://arxiv.org/abs/2510.06042 or https://arxiv.org/pdf/2510.06042.pdf
-        match = re.search(r"(\d{4}\.\d{4,5})(v\d+)?", paper_id)
-        if match:
-            return match.group(0)
+    # Handle full URLs — validate the hostname to avoid substring spoofing
+    # (e.g., "evil.com/arxiv.org" must not be treated as an arXiv URL)
+    if "://" in paper_id:
+        parsed = urlparse(paper_id)
+        if parsed.hostname and parsed.hostname.endswith("arxiv.org"):
+            match = re.search(r"(\d{4}\.\d{4,5})(v\d+)?", parsed.path)
+            if match:
+                return match.group(0)
 
     return paper_id
 
