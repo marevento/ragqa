@@ -27,7 +27,8 @@ def normalize_arxiv_id(paper_id: str) -> str:
     # (e.g., "evil.com/arxiv.org" must not be treated as an arXiv URL)
     if "://" in paper_id:
         parsed = urlparse(paper_id)
-        if parsed.hostname and parsed.hostname.endswith("arxiv.org"):
+        hostname = parsed.hostname.lower() if parsed.hostname else None
+        if hostname == "arxiv.org" or hostname.endswith(".arxiv.org"):
             match = re.search(r"(\d{4}\.\d{4,5})(v\d+)?", parsed.path)
             if match:
                 return match.group(0)
