@@ -25,7 +25,19 @@ A CLI application for answering questions about research papers using RAG (Retri
 ┌─────────────┐      ┌───────────────┐      ┌───────────────┐
 │ PDF Loader  │      │ Vector Store  │      │  Ollama API   │
 │  (PyMuPDF)  │      │  (ChromaDB)   │      │ (LLM + Embed) │
-└─────────────┘      └───────────────┘      └───────────────┘
+└─────────────┘      └───┬───────────┘      └───────────────┘
+                          │
+                   Retriever Pipeline:
+                   Semantic + BM25
+                        │
+                   Title Boost
+                        │
+                   RRF Fusion
+                        │
+                   Cross-Encoder
+                    Re-ranking
+                        │
+                   Score Filter → top-k
 ```
 
 ## Features
@@ -33,6 +45,7 @@ A CLI application for answering questions about research papers using RAG (Retri
 - **PDF Processing**: Extracts text, titles, authors, and abstracts from research papers
 - **Hybrid Search**: Combines BM25 keyword search + semantic embeddings with RRF fusion
 - **Title Boosting**: Prioritizes documents whose titles match the query
+- **Cross-Encoder Re-ranking**: Second-stage re-ranking with `cross-encoder/ms-marco-MiniLM-L-6-v2` for improved precision
 - **Document Filtering**: Score-based filtering to show only relevant sources
 - **Query Classification**: Routes queries to appropriate handlers (all-docs, single-doc, specific)
 - **Streaming Output**: Real-time token display for LLM responses
@@ -139,6 +152,8 @@ Environment variables (in `.env`):
 | `PAPERS_DIR` | `./research_papers` | PDF papers directory |
 | `LOG_LEVEL` | `INFO` | Logging level |
 | `DEBUG` | `false` | Enable debug mode |
+| `RERANKER_ENABLED` | `false` | Enable cross-encoder re-ranking (downloads model on first use) |
+| `RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model name |
 
 ## Design Decisions
 
@@ -152,11 +167,12 @@ Environment variables (in `.env`):
 - Good text extraction with layout preservation
 - Handles multi-column layouts
 
-### Why Hybrid Search?
+### Why Hybrid Search + Re-ranking?
 - BM25 handles exact keyword matches (e.g., "ToolMem")
 - Semantic search captures conceptual similarity
 - Reciprocal Rank Fusion (RRF) merges results effectively
 - Title boosting improves precision for document-specific queries
+- Cross-encoder re-ranking refines the top candidates with joint query-passage scoring
 - Document-level score filtering reduces irrelevant sources
 
 ### Query Classification
@@ -190,6 +206,7 @@ ragqa/
 │   │   ├── vectorstore.py # ChromaDB wrapper
 │   │   ├── bm25_index.py  # BM25 keyword search
 │   │   ├── retriever.py   # Hybrid search + RRF
+│   │   ├── reranker.py    # Cross-encoder re-ranking
 │   │   └── query_classifier.py
 │   ├── llm/
 │   │   ├── client.py      # Ollama client (sync + async)
@@ -226,7 +243,6 @@ poetry run ruff format src/ tests/
 
 - **Conversation Memory**: Add context persistence in chat mode using sliding window or summarization
 - **Query Classification**: Replace keyword heuristics with embedding-based classification using labeled examples
-- **Retrieval Enhancement**: Add cross-encoder re-ranking after RRF fusion for improved relevance
 - **Incremental Indexing**: Implement hash-based change detection to avoid full re-index on document updates
 - **Expanded Golden Tests**: Add more test cases covering edge cases, multi-document queries, and failure modes
 

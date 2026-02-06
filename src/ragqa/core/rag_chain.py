@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
 
 from ragqa import get_logger
+from ragqa.config import get_settings
 from ragqa.core.models import Chunk
 from ragqa.llm.client import generate, generate_async
 from ragqa.llm.prompts import (
@@ -14,9 +15,10 @@ from ragqa.llm.prompts import (
     SPECIFIC_QUERY_PROMPT,
     build_context,
 )
-from ragqa.protocols import KeywordIndex, VectorStoreProtocol
+from ragqa.protocols import KeywordIndex, RerankerProtocol, VectorStoreProtocol
 from ragqa.retrieval.bm25_index import BM25Index
 from ragqa.retrieval.query_classifier import QueryType, classify_query
+from ragqa.retrieval.reranker import CrossEncoderReranker
 from ragqa.retrieval.retriever import Retriever
 from ragqa.retrieval.vectorstore import VectorStore
 
@@ -42,10 +44,18 @@ class RAGChain:
         self,
         vectorstore: VectorStoreProtocol | None = None,
         bm25_index: KeywordIndex | None = None,
+        reranker: RerankerProtocol | None = None,
     ) -> None:
         self.vectorstore: VectorStoreProtocol = vectorstore or VectorStore()
         self.bm25_index: KeywordIndex = bm25_index or BM25Index()
-        self.retriever = Retriever(self.vectorstore, self.bm25_index)
+
+        # Auto-create reranker if enabled in settings and not explicitly provided
+        if reranker is None:
+            settings = get_settings()
+            if settings.reranker_enabled:
+                reranker = CrossEncoderReranker(model_name=settings.reranker_model)
+
+        self.retriever = Retriever(self.vectorstore, self.bm25_index, reranker=reranker)
 
     def ask(
         self, question: str, stream: bool = False

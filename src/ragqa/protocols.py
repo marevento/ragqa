@@ -238,6 +238,23 @@ class AsyncLLMProvider(Protocol):
         ...
 
 
+class RerankerProtocol(Protocol):
+    """Protocol for re-ranking retrieved chunks."""
+
+    def rerank(self, query: str, chunks: list[Chunk], top_k: int) -> list[Chunk]:
+        """Re-rank chunks by relevance to query.
+
+        Args:
+            query: The search query.
+            chunks: Candidate chunks to re-rank.
+            top_k: Maximum number of results to return.
+
+        Returns:
+            Re-ranked and truncated list of chunks.
+        """
+        ...
+
+
 class RetrieverProtocol(Protocol):
     """Protocol for hybrid retrieval."""
 

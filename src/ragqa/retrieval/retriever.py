@@ -1,11 +1,12 @@
 """Hybrid retrieval orchestration with RRF fusion."""
 
+import asyncio
 import time
 
 from ragqa import get_logger
 from ragqa.config import get_settings
 from ragqa.core.models import Chunk
-from ragqa.protocols import KeywordIndex, VectorStoreProtocol
+from ragqa.protocols import KeywordIndex, RerankerProtocol, VectorStoreProtocol
 from ragqa.retrieval.bm25_index import BM25Index
 from ragqa.retrieval.embeddings import get_embedding, get_embedding_async
 from ragqa.retrieval.vectorstore import VectorStore
@@ -17,6 +18,9 @@ TITLE_BOOST_WEIGHT = 2.0
 
 # Document-level filtering thresholds
 DOC_SCORE_RATIO = 0.7  # Drop documents with score < 70% of top document
+
+# Max candidates to send to cross-encoder reranker (limits latency)
+RERANK_CANDIDATE_LIMIT = 3  # multiplier of top_k
 
 
 def reciprocal_rank_fusion(results_list: list[list[Chunk]], k: int = 60) -> list[Chunk]:
@@ -61,9 +65,11 @@ class Retriever:
         self,
         vectorstore: VectorStoreProtocol | None = None,
         bm25_index: KeywordIndex | None = None,
+        reranker: RerankerProtocol | None = None,
     ) -> None:
         self.vectorstore: VectorStoreProtocol = vectorstore or VectorStore()
         self.bm25_index: KeywordIndex = bm25_index or BM25Index()
+        self.reranker = reranker
 
     def retrieve(self, query: str, top_k: int | None = None) -> list[Chunk]:
         """Retrieve relevant chunks using hybrid search with title boosting."""
@@ -102,8 +108,17 @@ class Retriever:
         else:
             merged = []
 
-        # Filter out low-scoring results
-        filtered = self._filter_by_score(merged[:k])
+        # Re-rank with cross-encoder if available
+        reranked = False
+        if self.reranker is not None and merged:
+            rerank_limit = k * RERANK_CANDIDATE_LIMIT
+            merged = self.reranker.rerank(query, merged[:rerank_limit], k)
+            reranked = True
+
+        # Skip _filter_by_score after reranking — sigmoid scores are in a
+        # different domain than RRF scores, and the reranker already
+        # selected the top-k most relevant chunks.
+        filtered = merged[:k] if reranked else self._filter_by_score(merged[:k])
 
         duration_ms = (time.time() - start_time) * 1000
         logger.info(
@@ -219,15 +234,26 @@ class Retriever:
         return self.bm25_index.search(query, k)
 
     def calculate_confidence(self, chunks: list[Chunk]) -> int:
-        """Calculate answer confidence from retrieval scores."""
+        """Calculate answer confidence from retrieval scores.
+
+        Handles two score domains:
+        - RRF scores (~0.01-0.03): scaled by 3000x to reach 0-100
+        - Reranker sigmoid scores (0.0-1.0): scaled by 100x to reach 0-100
+
+        The heuristic threshold is 0.1: scores above that are assumed to
+        be sigmoid-normalized (reranker output), scores below are RRF.
+        """
         if not chunks:
             return 0
         top_scores = sorted([c.score for c in chunks], reverse=True)[:3]
         avg_score = sum(top_scores) / len(top_scores)
-        # Scale RRF scores to percentage (RRF scores are typically small)
-        # Max RRF score for rank 1 with k=60 is 1/61 ≈ 0.016
-        # With 2 sources, max is about 0.032
-        confidence = min(100, int(avg_score * 3000))
+
+        if avg_score > 0.1:
+            # Sigmoid-normalized scores from cross-encoder (0.0-1.0)
+            confidence = min(100, int(avg_score * 100))
+        else:
+            # RRF scores — max is ~0.032 for rank-1 with 2 sources
+            confidence = min(100, int(avg_score * 3000))
         return confidence
 
     async def retrieve_async(self, query: str, top_k: int | None = None) -> list[Chunk]:
@@ -268,8 +294,18 @@ class Retriever:
         else:
             merged = []
 
-        # Filter out low-scoring results
-        filtered = self._filter_by_score(merged[:k])
+        # Re-rank with cross-encoder if available
+        # Run in thread to avoid blocking the event loop (CPU-bound)
+        reranked = False
+        if self.reranker is not None and merged:
+            rerank_limit = k * RERANK_CANDIDATE_LIMIT
+            merged = await asyncio.to_thread(
+                self.reranker.rerank, query, merged[:rerank_limit], k
+            )
+            reranked = True
+
+        # Skip _filter_by_score after reranking (see sync path comment)
+        filtered = merged[:k] if reranked else self._filter_by_score(merged[:k])
         return filtered
 
     async def _compute_title_scores_async(self, query: str) -> dict[str, float]:

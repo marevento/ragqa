@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Retrieval settings
     retrieval_top_k: int = 5
 
+    # Reranker settings
+    reranker_enabled: bool = False
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
     # ChromaDB settings
     chroma_persist_dir: Path = Path("./.chroma_db")
 

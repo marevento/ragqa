@@ -1,7 +1,8 @@
 """Tests for RAG chain orchestration."""
 
+from unittest.mock import MagicMock, patch
 
-from ragqa.core.rag_chain import RAGResponse
+from ragqa.core.rag_chain import RAGChain, RAGResponse
 
 
 class TestRAGResponse:
@@ -144,3 +145,59 @@ class TestRAGChainSourceExtraction:
         sources = chain._extract_sources(chunks)
         filenames = [s["filename"] for s in sources]
         assert filenames == ["doc1.pdf", "doc2.pdf"]
+
+
+class TestRAGChainRerankerWiring:
+    """Tests for reranker auto-wiring in RAGChain.__init__."""
+
+    @patch("ragqa.core.rag_chain.get_settings")
+    def test_reranker_created_when_enabled(self, mock_settings: MagicMock) -> None:
+        """RAGChain creates CrossEncoderReranker when reranker_enabled=True."""
+        from ragqa.config import Settings
+
+        mock_settings.return_value = Settings(
+            reranker_enabled=True,
+            reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        )
+
+        mock_vs = MagicMock()
+        mock_bm25 = MagicMock()
+
+        chain = RAGChain(vectorstore=mock_vs, bm25_index=mock_bm25)
+
+        assert chain.retriever.reranker is not None
+
+    @patch("ragqa.core.rag_chain.get_settings")
+    def test_reranker_not_created_when_disabled(self, mock_settings: MagicMock) -> None:
+        """RAGChain does NOT create reranker when reranker_enabled=False."""
+        from ragqa.config import Settings
+
+        mock_settings.return_value = Settings(
+            reranker_enabled=False,
+        )
+
+        mock_vs = MagicMock()
+        mock_bm25 = MagicMock()
+
+        chain = RAGChain(vectorstore=mock_vs, bm25_index=mock_bm25)
+
+        assert chain.retriever.reranker is None
+
+    @patch("ragqa.core.rag_chain.get_settings")
+    def test_explicit_reranker_overrides_settings(self, mock_settings: MagicMock) -> None:
+        """Explicitly passed reranker should be used regardless of settings."""
+        from ragqa.config import Settings
+
+        mock_settings.return_value = Settings(
+            reranker_enabled=False,  # disabled in settings
+        )
+
+        mock_vs = MagicMock()
+        mock_bm25 = MagicMock()
+        mock_reranker = MagicMock()
+
+        chain = RAGChain(
+            vectorstore=mock_vs, bm25_index=mock_bm25, reranker=mock_reranker
+        )
+
+        assert chain.retriever.reranker is mock_reranker
