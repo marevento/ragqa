@@ -44,11 +44,6 @@ def print_response(response: RAGResponse) -> None:
                 console.print(f"    {authors} | {filename}", style="dim")
 
 
-def print_streaming_start() -> None:
-    """Print indicator that streaming is starting."""
-    console.print()
-
-
 def print_error(error: RAGError, debug: bool = False) -> None:
     """Print an error message."""
     if debug and error.details:

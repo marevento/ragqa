@@ -40,6 +40,9 @@ class RAGResponse:
 class RAGChain:
     """Orchestrates RAG pipeline: classify → retrieve → generate."""
 
+    last_streaming_response: RAGResponse | None = None
+    """Populated after an async streaming generator is fully consumed."""
+
     def __init__(
         self,
         vectorstore: VectorStoreProtocol | None = None,
@@ -241,18 +244,18 @@ class RAGChain:
         query_type: QueryType,
     ) -> Generator[str, None, RAGResponse]:
         """Stream response tokens and return final RAGResponse."""
-        full_response = ""
+        tokens: list[str] = []
         gen = generate(prompt, stream=True)
         if isinstance(gen, str):
-            full_response = gen
+            tokens.append(gen)
             yield gen
         else:
             for token in gen:
-                full_response += token
+                tokens.append(token)
                 yield token
 
         return RAGResponse(
-            answer=self._clean_response(full_response),
+            answer=self._clean_response("".join(tokens)),
             sources=sources,
             confidence=confidence,
             query_type=query_type,
@@ -470,16 +473,24 @@ class RAGChain:
         confidence: int,
         query_type: QueryType,
     ) -> AsyncGenerator[str, None]:
-        """Stream response tokens and return final RAGResponse (async)."""
-        full_response = ""
+        """Stream response tokens (async).
+
+        After the generator is fully consumed, the final RAGResponse is
+        available via ``self.last_streaming_response``.
+        """
+        tokens: list[str] = []
         gen = await generate_async(prompt, stream=True)
         if isinstance(gen, str):
-            full_response = gen
+            tokens.append(gen)
             yield gen
         else:
             async for token in gen:
-                full_response += token
+                tokens.append(token)
                 yield token
 
-        # Note: In async generators, we can't use return with a value
-        # The final response should be accessed differently by the caller
+        self.last_streaming_response = RAGResponse(
+            answer=self._clean_response("".join(tokens)),
+            sources=sources,
+            confidence=confidence,
+            query_type=query_type,
+        )

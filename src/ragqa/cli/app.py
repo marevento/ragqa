@@ -14,32 +14,33 @@ os.environ["POSTHOG_DISABLED"] = "True"
 # Suppress stderr during chromadb import (onnxruntime C++ warnings)
 # Use file descriptor redirect to capture C++ level warnings
 _stderr = sys.stderr
-sys.stderr = io.StringIO()
 _stderr_fd = os.dup(2)
 _devnull = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_devnull, 2)
-
-logging.getLogger("chromadb").setLevel(logging.ERROR)
-logging.getLogger("posthog").setLevel(logging.CRITICAL)
-logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
-
-# Monkey-patch posthog capture to suppress errors
 try:
-    import posthog
+    sys.stderr = io.StringIO()
+    os.dup2(_devnull, 2)
 
-    posthog.capture = lambda *args, **kwargs: None
-    posthog.disabled = True
-except ImportError:
-    pass
+    logging.getLogger("chromadb").setLevel(logging.ERROR)
+    logging.getLogger("posthog").setLevel(logging.CRITICAL)
+    logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 
-# Import chromadb-related modules while stderr is suppressed
-from ragqa.retrieval.vectorstore import VectorStore  # noqa: E402
+    # Monkey-patch posthog capture to suppress errors
+    try:
+        import posthog
 
-# Restore stderr after chromadb import
-os.dup2(_stderr_fd, 2)
-os.close(_stderr_fd)
-os.close(_devnull)
-sys.stderr = _stderr
+        posthog.capture = lambda *args, **kwargs: None
+        posthog.disabled = True
+    except ImportError:
+        pass
+
+    # Import chromadb-related modules while stderr is suppressed
+    from ragqa.retrieval.vectorstore import VectorStore  # noqa: E402
+finally:
+    # Restore stderr even if an exception occurs
+    os.dup2(_stderr_fd, 2)
+    os.close(_stderr_fd)
+    os.close(_devnull)
+    sys.stderr = _stderr
 
 import json  # noqa: E402
 from pathlib import Path  # noqa: E402

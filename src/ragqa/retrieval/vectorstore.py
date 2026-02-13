@@ -10,7 +10,7 @@ from chromadb.config import Settings as ChromaSettings
 from ragqa import get_logger
 from ragqa.config import get_settings
 from ragqa.core.models import Chunk, Document
-from ragqa.exceptions import IndexError as RAGIndexError
+from ragqa.exceptions import IndexingError as RAGIndexError
 from ragqa.retrieval.embeddings import (
     get_embedding,
     get_embedding_async,
@@ -85,7 +85,10 @@ class VectorStore:
             chunk_metadatas: list[dict[str, Any]] = []
             for c in document.chunks:
                 page_val = c.metadata.get("page", 0)
-                page_num = int(page_val) if isinstance(page_val, int | str) else 0
+                try:
+                    page_num = int(page_val) if isinstance(page_val, int | str) else 0
+                except (ValueError, TypeError):
+                    page_num = 0
                 meta: dict[str, Any] = {
                     "filename": c.metadata.get("filename", ""),
                     "title": c.metadata.get("title", ""),

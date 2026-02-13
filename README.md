@@ -93,51 +93,51 @@ poetry run python scripts/download_papers.py --file papers.txt
 
 ```bash
 # Build the index (first time)
-ragqa index
+poetry run ragqa index
 
 # Force rebuild
-ragqa index --force
+poetry run ragqa index --force
 ```
 
 ### Ask Questions
 
 ```bash
 # Single question
-ragqa ask "What is ToolMem?"
+poetry run ragqa ask "What is ToolMem?"
 
 # JSON output
-ragqa ask --json "What is ToolMem?"
+poetry run ragqa ask --json "What is ToolMem?"
 
 # No streaming
-ragqa ask --no-stream "What is ToolMem?"
+poetry run ragqa ask --no-stream "What is ToolMem?"
 ```
 
 ### Interactive Chat
 
 ```bash
-ragqa chat
+poetry run ragqa chat
 ```
 
 ### List Documents
 
 ```bash
-ragqa list-docs
+poetry run ragqa list-docs
 ```
 
 ### Run Tests
 
 ```bash
 # Golden file tests
-ragqa test
+poetry run ragqa test
 
 # JSON output for CI
-ragqa test --json
+poetry run ragqa test --json
 ```
 
 ### Configuration
 
 ```bash
-ragqa config
+poetry run ragqa config
 ```
 
 ## Configuration

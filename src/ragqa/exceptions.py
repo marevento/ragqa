@@ -16,7 +16,7 @@ class PDFError(RAGError):
     pass
 
 
-class IndexError(RAGError):
+class IndexingError(RAGError):
     """Vector/BM25 index errors."""
 
     pass

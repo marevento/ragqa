@@ -1,8 +1,9 @@
 """BM25 keyword index for hybrid retrieval."""
 
-import pickle
+import json
 import re
 from pathlib import Path
+from typing import Any
 
 from rank_bm25 import BM25Okapi
 
@@ -26,8 +27,7 @@ class BM25Index:
         self.persist_dir = persist_dir or settings.chroma_persist_dir
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
-        self.index_path = self.persist_dir / "bm25_index.pkl"
-        self.chunks_path = self.persist_dir / "bm25_chunks.pkl"
+        self.data_path = self.persist_dir / "bm25_data.json"
 
         self.bm25: BM25Okapi | None = None
         self.chunks: list[Chunk] = []
@@ -36,27 +36,60 @@ class BM25Index:
         self._load()
 
     def _load(self) -> None:
-        """Load index from disk if exists."""
-        if self.index_path.exists() and self.chunks_path.exists():
+        """Load index from disk and rebuild BM25 from corpus."""
+        if self.data_path.exists():
             try:
-                with open(self.index_path, "rb") as f:
-                    self.bm25 = pickle.load(f)
-                with open(self.chunks_path, "rb") as f:
-                    data = pickle.load(f)
-                    self.chunks = data.get("chunks", [])
-                    self.corpus = data.get("corpus", [])
+                with open(self.data_path) as f:
+                    data: dict[str, Any] = json.load(f)
+                self.corpus = data.get("corpus", [])
+                self.chunks = [
+                    Chunk(**chunk_data) for chunk_data in data.get("chunks", [])
+                ]
+                if self.corpus:
+                    self.bm25 = BM25Okapi(self.corpus)
             except Exception:
                 self.bm25 = None
                 self.chunks = []
                 self.corpus = []
 
+        # Migrate legacy pickle files if JSON doesn't exist
+        elif self._migrate_legacy():
+            pass
+
+    def _migrate_legacy(self) -> bool:
+        """Migrate legacy pickle files to JSON format."""
+        legacy_index = self.persist_dir / "bm25_index.pkl"
+        legacy_chunks = self.persist_dir / "bm25_chunks.pkl"
+
+        if not (legacy_index.exists() and legacy_chunks.exists()):
+            return False
+
+        try:
+            import pickle  # noqa: S403 — one-time migration only
+
+            with open(legacy_chunks, "rb") as f:
+                data = pickle.load(f)  # noqa: S301
+            self.chunks = data.get("chunks", [])
+            self.corpus = data.get("corpus", [])
+            if self.corpus:
+                self.bm25 = BM25Okapi(self.corpus)
+                self._save()
+            # Remove legacy files after successful migration
+            legacy_index.unlink(missing_ok=True)
+            legacy_chunks.unlink(missing_ok=True)
+            return True
+        except Exception:
+            return False
+
     def _save(self) -> None:
-        """Save index to disk."""
-        if self.bm25 is not None:
-            with open(self.index_path, "wb") as f:
-                pickle.dump(self.bm25, f)
-            with open(self.chunks_path, "wb") as f:
-                pickle.dump({"chunks": self.chunks, "corpus": self.corpus}, f)
+        """Save chunks and corpus to disk as JSON."""
+        if self.corpus:
+            data = {
+                "chunks": [chunk.model_dump() for chunk in self.chunks],
+                "corpus": self.corpus,
+            }
+            with open(self.data_path, "w") as f:
+                json.dump(data, f)
 
     def build_from_documents(self, documents: list[Document]) -> None:
         """Build BM25 index from documents."""
@@ -79,11 +112,7 @@ class BM25Index:
             self._save()
 
     def add_document(self, document: Document) -> None:
-        """Add a single document to the index.
-
-        Note: For better performance when adding multiple documents,
-        use add_documents_batch() instead.
-        """
+        """Add a single document to the index."""
         for chunk in document.chunks:
             tokens = tokenize(chunk.text)
             title_tokens = tokenize(chunk.title)
@@ -93,30 +122,6 @@ class BM25Index:
             self.corpus.append(all_tokens)
 
         # Rebuild index with new documents
-        if self.corpus:
-            self.bm25 = BM25Okapi(self.corpus)
-            self._save()
-
-    def add_documents_batch(self, documents: list[Document]) -> None:
-        """Add multiple documents and rebuild index once.
-
-        This is more efficient than calling add_document() multiple times
-        because it only rebuilds the BM25 index once after all documents
-        are added.
-
-        Args:
-            documents: List of documents to add.
-        """
-        for doc in documents:
-            for chunk in doc.chunks:
-                tokens = tokenize(chunk.text)
-                title_tokens = tokenize(chunk.title)
-                all_tokens = tokens + title_tokens
-
-                self.chunks.append(chunk)
-                self.corpus.append(all_tokens)
-
-        # Single rebuild at end
         if self.corpus:
             self.bm25 = BM25Okapi(self.corpus)
             self._save()
@@ -135,12 +140,13 @@ class BM25Index:
         ]
 
         results: list[Chunk] = []
+        top_score = float(max(scores)) if len(scores) > 0 else 0.0
+        max_score = top_score if top_score > 0 else 1.0
+
         for idx, score in scored_indices:
             if score > 0:
                 chunk = self.chunks[idx]
-                # Create new chunk with BM25 score normalized to 0-1 range
-                max_score = max(scores) if max(scores) > 0 else 1
-                normalized_score = score / max_score
+                normalized_score = float(score) / max_score
                 results.append(
                     Chunk(
                         id=chunk.id,
@@ -157,10 +163,13 @@ class BM25Index:
         self.bm25 = None
         self.chunks = []
         self.corpus = []
-        if self.index_path.exists():
-            self.index_path.unlink()
-        if self.chunks_path.exists():
-            self.chunks_path.unlink()
+        if self.data_path.exists():
+            self.data_path.unlink()
+        # Clean up legacy files if present
+        for legacy in ("bm25_index.pkl", "bm25_chunks.pkl"):
+            path = self.persist_dir / legacy
+            if path.exists():
+                path.unlink()
 
     def is_indexed(self) -> bool:
         """Check if index has been built."""

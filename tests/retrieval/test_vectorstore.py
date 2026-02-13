@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from ragqa.config import get_settings
 from ragqa.core.models import Chunk, Document
-from ragqa.exceptions import IndexError as RAGIndexError
+from ragqa.exceptions import IndexingError as RAGIndexError
 from ragqa.retrieval.vectorstore import VectorStore
 
 

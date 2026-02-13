@@ -76,16 +76,6 @@ def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
         ) from e
 
 
-def check_ollama_available() -> bool:
-    """Check if Ollama is running and accessible."""
-    settings = get_settings()
-    try:
-        response = httpx.get(f"{settings.ollama_base_url}/api/tags", timeout=5.0)
-        return response.status_code == 200
-    except Exception:
-        return False
-
-
 def check_model_available(model: str) -> bool:
     """Check if a specific model is available in Ollama."""
     settings = get_settings()

@@ -219,20 +219,6 @@ class Retriever:
         # Filter chunks to only those from valid documents
         return [c for c in chunks if c.filename in valid_docs]
 
-    def retrieve_semantic_only(
-        self, query: str, top_k: int | None = None
-    ) -> list[Chunk]:
-        """Retrieve using only semantic search."""
-        settings = get_settings()
-        k = top_k or settings.retrieval_top_k
-        return self.vectorstore.search_chunks(query, k)
-
-    def retrieve_bm25_only(self, query: str, top_k: int | None = None) -> list[Chunk]:
-        """Retrieve using only BM25 keyword search."""
-        settings = get_settings()
-        k = top_k or settings.retrieval_top_k
-        return self.bm25_index.search(query, k)
-
     def calculate_confidence(self, chunks: list[Chunk]) -> int:
         """Calculate answer confidence from retrieval scores.
 
@@ -350,10 +336,3 @@ class Retriever:
 
         return title_scores
 
-    async def retrieve_semantic_only_async(
-        self, query: str, top_k: int | None = None
-    ) -> list[Chunk]:
-        """Retrieve using only semantic search (async)."""
-        settings = get_settings()
-        k = top_k or settings.retrieval_top_k
-        return await self.vectorstore.search_chunks_async(query, k)  # type: ignore[attr-defined, no-any-return]

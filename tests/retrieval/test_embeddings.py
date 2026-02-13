@@ -7,9 +7,9 @@ import httpx
 import pytest
 from ragqa.config import get_settings
 from ragqa.exceptions import LLMError
+from ragqa.llm.client import check_ollama_available
 from ragqa.retrieval.embeddings import (
     check_model_available,
-    check_ollama_available,
     get_embedding,
     get_embeddings_batch,
 )
