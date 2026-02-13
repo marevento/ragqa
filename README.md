@@ -1,5 +1,9 @@
 # RAG Q&A - Research Paper Q&A System
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CodeQL](https://github.com/marevento/ragqa/actions/workflows/dynamic/github-code-scanning/codeql/badge.svg)](https://github.com/marevento/ragqa/actions/workflows/dynamic/github-code-scanning/codeql)
+
 A CLI application for answering questions about research papers using RAG (Retrieval-Augmented Generation) with Ollama as the LLM backend.
 
 ## Architecture
@@ -93,51 +97,51 @@ poetry run python scripts/download_papers.py --file papers.txt
 
 ```bash
 # Build the index (first time)
-ragqa index
+poetry run ragqa index
 
 # Force rebuild
-ragqa index --force
+poetry run ragqa index --force
 ```
 
 ### Ask Questions
 
 ```bash
 # Single question
-ragqa ask "What is ToolMem?"
+poetry run ragqa ask "What is ToolMem?"
 
 # JSON output
-ragqa ask --json "What is ToolMem?"
+poetry run ragqa ask --json "What is ToolMem?"
 
 # No streaming
-ragqa ask --no-stream "What is ToolMem?"
+poetry run ragqa ask --no-stream "What is ToolMem?"
 ```
 
 ### Interactive Chat
 
 ```bash
-ragqa chat
+poetry run ragqa chat
 ```
 
 ### List Documents
 
 ```bash
-ragqa list-docs
+poetry run ragqa list-docs
 ```
 
 ### Run Tests
 
 ```bash
 # Golden file tests
-ragqa test
+poetry run ragqa test
 
 # JSON output for CI
-ragqa test --json
+poetry run ragqa test --json
 ```
 
 ### Configuration
 
 ```bash
-ragqa config
+poetry run ragqa config
 ```
 
 ## Configuration
@@ -245,6 +249,13 @@ poetry run ruff format src/ tests/
 - **Query Classification**: Replace keyword heuristics with embedding-based classification using labeled examples
 - **Incremental Indexing**: Implement hash-based change detection to avoid full re-index on document updates
 - **Expanded Golden Tests**: Add more test cases covering edge cases, multi-document queries, and failure modes
+
+## Continuous Security
+
+- **Static analysis**: CodeQL via GitHub Advanced Security
+- **Dependency patching**: Dependabot for automated updates
+- **Secret scanning**: gitleaks pre-commit hook
+- **Linting**: ruff with security-relevant rules enabled
 
 ## License
 

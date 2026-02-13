@@ -46,8 +46,3 @@ class Document(BaseModel):
     chunks: list[Chunk] = Field(default_factory=list)
 
 
-class SearchResult(BaseModel):
-    """A search result with source information."""
-
-    chunks: list[Chunk]
-    query_type: str = "specific"

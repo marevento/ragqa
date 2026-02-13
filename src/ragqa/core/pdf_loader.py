@@ -5,9 +5,12 @@ from pathlib import Path
 
 import fitz
 
+from ragqa import get_logger
 from ragqa.config import get_settings
 from ragqa.core.models import Chunk, Document
 from ragqa.exceptions import PDFError
+
+logger = get_logger(__name__)
 
 
 def extract_text_reading_order(page: fitz.Page) -> str:
@@ -263,8 +266,8 @@ def load_all_pdfs(papers_dir: Path | None = None) -> list[Document]:
         try:
             doc = load_pdf(pdf_path)
             documents.append(doc)
-        except PDFError:
-            # Log warning but continue with other files
+        except PDFError as e:
+            logger.warning("pdf_skipped", filename=pdf_path.name, reason=e.message)
             continue
 
     return documents
