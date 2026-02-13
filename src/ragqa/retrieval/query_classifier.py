@@ -30,7 +30,7 @@ def classify_query(query: str) -> QueryType:
 
     # Single-doc summarization (mentions specific arxiv-style ID)
     single_doc_keywords = ["summarize", "summary", "about", "what is"]
-    if re.search(r"2510\.\d+", query) and any(
+    if re.search(r"\d{4}\.\d{4,5}", query) and any(
         w in query_lower for w in single_doc_keywords
     ):
         return "single_doc"
