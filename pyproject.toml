@@ -22,7 +22,7 @@ pydantic-settings = "^2.2.0"
 structlog = ">=24.1,<27.0"
 sentence-transformers = ">=3,<6"
 transformers = ">=4.53.0"
-protobuf = ">=6.33.5,<8"
+protobuf = ">=6.33.5,<7"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
