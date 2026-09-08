@@ -8,4 +8,8 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     open-pull-requests-limit: 10
