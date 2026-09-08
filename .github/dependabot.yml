@@ -12,4 +12,10 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+    ignore:
+      # opentelemetry-proto (pulled in by chromadb) has no release compatible
+      # with protobuf 7 yet. A major bump forces the resolver onto an ancient
+      # opentelemetry-proto whose generated code fails to import.
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 10
